@@ -1,0 +1,61 @@
+import Foundation
+import CommonCrypto
+
+//MARK: - Server Constants
+
+let publicKey = "e1198af2a04c8e71fbe11a5b2f5de361"
+let privateKey = "61e5bc3ae975a2d192a9512ad456d7e16c41757f"
+let timestamp = Date().timeIntervalSince1970.description
+
+//MARK: = Hash generator
+
+func generateHash() -> String {
+    let combinedHash = "\(timestamp)\(privateKey)\(publicKey)"
+    return combinedHash.MD5()
+}
+
+//MARK: = Get data
+
+func getData(urlRequest: String) {
+    let urlRequest = URL(string: urlRequest)
+    guard let url = urlRequest else { return }
+    URLSession.shared.dataTask(with: url) { data, response, error in
+        if  ((error as? NSError) != nil)  {
+            print("Что-то пошло не так: \(error?.localizedDescription ?? "nil")")
+        } else if let response = response as? HTTPURLResponse, response.statusCode == 200 {
+            print("Код ответа из сервера: \(response.statusCode) - Успешный запрос ")
+            guard let data = data else { return }
+            let dataAsString = String(data: data, encoding: .utf8)
+                print("Данные с сервера: \(dataAsString ?? "nil")")
+        }
+    } .resume()
+}
+
+let hash = generateHash()
+let tenderReference = "https://tenders.guru/api/hu/tenders"
+let spiderManReference = "https://gateway.marvel.com:443/v1/public/characters?ts=\(timestamp)&name=Spider-Man&apikey=\(publicKey)&hash=\(hash)"
+let marvelCharactersReference = "https://gateway.marvel.com/v1/public/characters?ts=\(timestamp)&apikey=\(publicKey)&hash=\(hash)"
+
+getData(urlRequest: spiderManReference)
+
+//MARK: = Extension
+
+extension String {
+    
+    func MD5() -> String {
+        let length = Int(CC_MD5_DIGEST_LENGTH)
+        guard let messageData = self.data(using: .utf8) else { return "" }
+        var digestData = Data(count: length)
+        _ = digestData.withUnsafeMutableBytes { digestBytes -> UInt8 in
+            messageData.withUnsafeBytes { messageBytes -> UInt8 in
+                if let messageBytesBaseAddress = messageBytes.baseAddress,
+                   let digestBytesBlindMemory = digestBytes.bindMemory(to: UInt8.self).baseAddress {
+                    let messageLength = CC_LONG(messageData.count)
+                    CC_MD5(messageBytesBaseAddress, messageLength, digestBytesBlindMemory)
+                }
+                return 0
+            }
+        }
+        return digestData.map { String(format: "%02hhx", $0) }.joined()
+    }
+}
